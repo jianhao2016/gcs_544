@@ -196,10 +196,10 @@ import argparse
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--train_data_dir', type = str,
+parser.add_argument('--train_data_dir', type = str, default = '../data/cifar10_train.tfrecords',
                     help='The directory to the stored cifar10 train data in tfrecords form.')
                     
-parser.add_argument('--test_data_dir', type = str,
+parser.add_argument('--test_data_dir', type = str, default = '../data/cifar10_test.tfrecords',
                     help='The directory to the stored cifar10 test data in tfrecords form.')
                     
 parser.add_argument('--depth', type = int, default = 15,
@@ -289,7 +289,10 @@ def _parse_function(serialized_example):
   return image, label
   
 def my_input_fn(filename, is_training, batch_size, nEpoch = 1):
-    dataset = tf.data.TFRecordDataset(filename)
+    # # unfortunatly, google tf.data was introduced in r1.4.
+    # # yet google cloud runs on r1.2
+    # dataset = tf.data.TFRecordDataset(filename)
+    dataset = tf.contrib.data.TFRecordDataset(filename)
     dataset = dataset.map(_parse_function)
     if is_training:
         dataset = dataset.shuffle(buffer_size = 256)
