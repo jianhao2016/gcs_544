@@ -324,51 +324,68 @@ network = cifar10_resnet_LBC_generator(depth = opt.depth,
 
 
 # my_input_fn will return a pair of tensor, (images, labels), so no need for placeholder.
-# construct the graph
-# images = tf.placeholder(tf.float32, shape = [None, _image_height, _image_width, _channels])
-# labels = tf.placeholder(tf.float32, shape = [None])
 train_batch_images, train_batch_labels = my_input_fn(filename = path2TrainData, 
         is_training = True, batch_size = opt.batch_size, nEpoch = opt.nEpochs)
-train_one_hot_labels = tf.one_hot(tf.cast(train_batch_labels, tf.int32), depth = opt.nClass)
+# train_one_hot_labels = tf.one_hot(tf.cast(train_batch_labels, tf.int32), depth = opt.nClass)
+# Build the INFERENCE net.
+# for test dataset, no need to shuffle, but still need to run #epoch times.
+test_batch_images, test_batch_labels = my_input_fn(filename = path2testData, 
+        is_training = False, batch_size = opt.batch_size, nEpoch = opt.nEpochs)
+# test_one_hot_labels = tf.one_hot(tf.cast(test_batch_labels, tf.int32), depth = opt.nClass)
+
+# construct the graph
+images = tf.placeholder(tf.float32, shape = [None, _image_height, _image_width, _channels])
+labels = tf.placeholder(tf.float32, shape = [None])
+one_hot_labels = tf.one_hot(tf.cast(labels, tf.int43), depth = opt.nClass)
 
 # the left two parameters are rate and training flag(pass into the LBC module)
 learning_rate = tf.placeholder(tf.float32, shape = [])
 training_rate = 0.1
 is_training = tf.placeholder(tf.bool, shape = [], name = 'training_flag')
 # we can probably add drop-out rate here. As a placeholder.
+# # ----- why not just gen the data while training and feed them?
 
-# ---------------
-# compute the output of a graph and see the loss/accuracy in the TRAINING NET!
-train_logits = network(train_batch_images, is_training = is_training)
-train_cross_entropy = tf.losses.softmax_cross_entropy(train_one_hot_labels, train_logits)
-
-train_loss = train_cross_entropy + _WEIGHT_DECAY * tf.add_n(
-   [tf.nn.l2_loss(v) for v in tf.trainable_variables()])
-# train_loss = train_cross_entropy + _WEIGHT_DECAY * reg
+logits = network(inputs = images, is_training = is_training)
+cross_entropy = tf.losses.softmax_cross_entropy(one_hot_labels, logits)
+loss = cross_entropy + _WEIGHT_DECAY * tf.add_n(
+        [tf.nn.l2_loss(v) for v in tf.trainable_variables()])
 
 optimizer = tf.train.MomentumOptimizer(learning_rate = learning_rate, momentum = _momentum)
+
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 with tf.control_dependencies(update_ops):
     train_op = optimizer.minimize(train_loss)
 
-train_correct_prediction = tf.equal(tf.argmax(train_logits, 1), tf.argmax(train_one_hot_labels, 1))
-train_accuracy = tf.reduce_mean(tf.cast(train_correct_prediction, tf.float32))
+correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(one_hot_labels, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
-# --------------
-# Build the INFERENCE net.
-# for test dataset, no need to shuffle, but still need to run #epoch times.
-test_batch_images, test_batch_labels = my_input_fn(filename = path2testData, 
-        is_training = False, batch_size = opt.batch_size, nEpoch = opt.nEpochs)
-test_one_hot_labels = tf.one_hot(tf.cast(test_batch_labels, tf.int32), depth = opt.nClass)
-
-# can't do this. need to save the training model and test on the loaded model.
-test_logits = network(inputs = test_batch_images, is_training = is_training)
-test_cross_entropy = tf.losses.softmax_cross_entropy(test_one_hot_labels, test_logits)
-
-# test_loss = test_cross_entropy + _WEIGHT_DECAY * reg
-test_loss = test_cross_entropy
-test_correct_prediction = tf.equal(tf.argmax(test_logits, 1), tf.argmax(test_one_hot_labels, 1))
-test_accuracy = tf.reduce_mean(tf.cast(test_correct_prediction, tf.float32))
+# # ---------------
+# # compute the output of a graph and see the loss/accuracy in the TRAINING NET!
+# train_logits = network(train_batch_images, is_training = is_training)
+# train_cross_entropy = tf.losses.softmax_cross_entropy(train_one_hot_labels, train_logits)
+# 
+# train_loss = train_cross_entropy + _WEIGHT_DECAY * tf.add_n(
+#    [tf.nn.l2_loss(v) for v in tf.trainable_variables()])
+# # train_loss = train_cross_entropy + _WEIGHT_DECAY * reg
+# 
+# optimizer = tf.train.MomentumOptimizer(learning_rate = learning_rate, momentum = _momentum)
+# update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+# with tf.control_dependencies(update_ops):
+#     train_op = optimizer.minimize(train_loss)
+# 
+# train_correct_prediction = tf.equal(tf.argmax(train_logits, 1), tf.argmax(train_one_hot_labels, 1))
+# train_accuracy = tf.reduce_mean(tf.cast(train_correct_prediction, tf.float32))
+# 
+# # --------------
+# 
+# # can't do this. need to save the training model and test on the loaded model.
+# test_logits = network(inputs = test_batch_images, is_training = is_training)
+# test_cross_entropy = tf.losses.softmax_cross_entropy(test_one_hot_labels, test_logits)
+# 
+# # test_loss = test_cross_entropy + _WEIGHT_DECAY * reg
+# test_loss = test_cross_entropy
+# test_correct_prediction = tf.equal(tf.argmax(test_logits, 1), tf.argmax(test_one_hot_labels, 1))
+# test_accuracy = tf.reduce_mean(tf.cast(test_correct_prediction, tf.float32))
 
 
 with tf.Session() as sess:
@@ -384,33 +401,36 @@ with tf.Session() as sess:
             step = epoch * (_train_dataset_size//opt.batch_size) + iter
             if step in [total_step//4, total_step//2, total_step * 3//4, total_step * 7 // 8]:
                 training_rate *= 0.1
-            # # sample batchs from training data.
+            # sample batchs from training data.
             # images_batch = train_data[iter : iter + opt.batch_size]
             # labels_batch = train_label[iter : iter + opt.batch_size]
-            # feed_dict_1 = {images : images_batch,
-            #              labels : labels_batch,
-            #              learning_rate : training_rate,
-            #              is_training : True}
-            feed_dict_1 = {learning_rate : training_rate,
-                           is_training   : True}
-            # IMPORTANT!! NOW WE CAN ONLY sess.run ONCE!!!!  
-            _, train_loss_w_bn, train_xentropy_w_bn, train_acc_w_bn = sess.run(
-                    [train_op, train_loss, train_cross_entropy, train_accuracy],
-                    feed_dict = feed_dict_1)
-            # sess.run(train_op, feed_dict = feed_dict_1)
-            # train_loss_w_bn, train_xentro_w_bn, train_acc_w_bn = sess.run(
-            #         [loss, cross_entropy, accuracy], feed_dict = feed_dict_1)
+            images_batch, labels_batch = sess.run(
+                    [train_batch_images, train_batch_labels])
+            feed_dict_1 = {images : images_batch,
+                         labels : labels_batch,
+                         learning_rate : training_rate,
+                         is_training : True}
+            sess.run(train_op, feed_dict = feed_dict_1)
+            train_loss_w_bn, train_xentro_w_bn, train_acc_w_bn = sess.run(
+                    [loss, cross_entropy, accuracy], feed_dict = feed_dict_1)
             # feed_dict_2 = {images : images_batch,
             #              labels : labels_batch,
             #              learning_rate : training_rate,
             #              is_training : False}
             # train_loss_wo_bn, train_xentro_wo_bn, train_acc_wo_bn = sess.run(
             #         [loss, cross_entropy, accuracy], feed_dict = feed_dict_2)
+            
+            # # IMPORTANT!! NOW WE CAN ONLY sess.run ONCE!!!!  
+            # feed_dict_1 = {learning_rate : training_rate,
+            #                is_training   : True}
+            # _, train_loss_w_bn, train_xentropy_w_bn, train_acc_w_bn = sess.run(
+            #         [train_op, train_loss, train_cross_entropy, train_accuracy],
+            #         feed_dict = feed_dict_1)
             if iter%50 == 0:
                 print('learning_rate = {}'.format(training_rate))
 
-                print('step {}, with batch norm training loss = {}, cross_entropy = {}, training accuracy = {}'.format(
-                    step, train_loss_w_bn, train_xentropy_w_bn, train_acc_w_bn))
+                print('step {}, with batch norm training accuracy = {}, training loss = {}, cross_entropy = {}'.format(
+                    step, train_acc_w_bn, train_loss_w_bn, train_xentro_w_bn))
 
                 # print('step {}, without batch norm training loss = {}, cross_entropy = {}, training accuracy = {}'.format(
                 #     step, train_loss_wo_bn, train_xentro_wo_bn, train_acc_wo_bn))
@@ -425,10 +445,13 @@ with tf.Session() as sess:
             # test_dict = {images : eval_images[i: i + opt.batch_size],
             #              labels : eval_labels[i: i + opt.batch_size],
             #              is_training: False}
-            # test_batch_loss, test_batch_acc = sess.run([loss, accuracy], feed_dict = test_dict)
-            test_batch_loss, test_batch_acc, test_batch_xentropy = sess.run(
-                    [test_loss, test_accuracy, test_cross_entropy],
-                    feed_dict = {is_training : False})
+            eval_images, eval_labels = sess.run([test_batch_images, test_batch_labels])
+            test_dict = {images : eval_images,
+                         labels : eval_labels}
+            test_batch_loss, test_batch_acc = sess.run([loss, accuracy], feed_dict = test_dict)
+            # test_batch_loss, test_batch_acc, test_batch_xentropy = sess.run(
+            #         [test_loss, test_accuracy, test_cross_entropy],
+            #         feed_dict = {is_training : False})
             eval_loss += test_batch_loss
             eval_acc += test_batch_acc
         eval_loss = eval_loss/(_test_dataset_size//opt.batch_size)
