@@ -361,7 +361,8 @@ test_batch_images, test_batch_labels = my_input_fn(filename = path2testData,
         is_training = False, batch_size = opt.batch_size, nEpoch = opt.nEpochs)
 test_one_hot_labels = tf.one_hot(tf.cast(test_batch_labels, tf.int32), depth = opt.nClass)
 
-test_logits = network(inputs = test_batch_images, is_training = False)
+# can't do this. need to save the training model and test on the loaded model.
+test_logits = network(inputs = test_batch_images, is_training = is_training)
 test_cross_entropy = tf.losses.softmax_cross_entropy(test_one_hot_labels, test_logits)
 
 # test_loss = test_cross_entropy + _WEIGHT_DECAY * reg
@@ -425,7 +426,9 @@ with tf.Session() as sess:
             #              labels : eval_labels[i: i + opt.batch_size],
             #              is_training: False}
             # test_batch_loss, test_batch_acc = sess.run([loss, accuracy], feed_dict = test_dict)
-            test_batch_loss, test_batch_acc, test_batch_xentropy = sess.run([test_loss, test_accuracy, test_cross_entropy])
+            test_batch_loss, test_batch_acc, test_batch_xentropy = sess.run(
+                    [test_loss, test_accuracy, test_cross_entropy],
+                    feed_dict = {is_training : False})
             eval_loss += test_batch_loss
             eval_acc += test_batch_acc
         eval_loss = eval_loss/(_test_dataset_size//opt.batch_size)
