@@ -410,9 +410,9 @@ with tf.Session() as sess:
                          labels : labels_batch,
                          learning_rate : training_rate,
                          is_training : True}
-            sess.run(train_op, feed_dict = feed_dict_1)
-            train_loss_w_bn, train_xentro_w_bn, train_acc_w_bn = sess.run(
-                    [loss, cross_entropy, accuracy], feed_dict = feed_dict_1)
+            # sess.run(train_op, feed_dict = feed_dict_1)
+            _, train_loss_w_bn, train_xentro_w_bn, train_acc_w_bn = sess.run(
+                    [train_op, loss, cross_entropy, accuracy], feed_dict = feed_dict_1)
             # feed_dict_2 = {images : images_batch,
             #              labels : labels_batch,
             #              learning_rate : training_rate,
