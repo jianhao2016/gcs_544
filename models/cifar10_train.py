@@ -369,8 +369,7 @@ def my_input_fn(filename, is_training, batch_size, nEpoch = 1):
 
 
 print('depth of resnet = {}'.format(opt.depth))
-print('nClass = {}, kSize = {}, numChannels = {}, FC_units = {}, data_format ={},
-        number_of_b = {}, sparsity = {}, shared_weights = {}'.format(opt.nClass, 
+print('nClass = {}, kSize = {}, numChannels = {}, FC_units = {}, data_format ={}, number_of_b = {}, sparsity = {}, shared_weights = {}'.format(opt.nClass, 
             opt.convSize, opt.numChannels, opt.full, opt.data_format, opt.number_of_b,
             opt.sparsity, opt.shared_weights)
 # network = resnet_LBC.cifar10_resnet_vanilla_generator(depth = opt.depth,
