@@ -27,7 +27,7 @@ gcloud ml-engine jobs submit training ${JOB_NAME} \
     --batch_size 128 \
     --LR 1e-1 \
     --weightDecay 1e-4 \
-    --depth 10 \
+    --depth 5 \
     --full 512 \
     --numChannels 128 \
     --sparsity 0.3 \
