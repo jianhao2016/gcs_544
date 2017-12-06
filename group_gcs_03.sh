@@ -8,11 +8,11 @@
 
 
 
-JOB_NAME='project544_Dec_05_UseTFRecord_to_load'
+JOB_NAME='project544_s_03'
 BUCKET_NAME='gs://544projects-cloud'
 gcloud ml-engine jobs submit training ${JOB_NAME} \
     --package-path models \
-    --module-name models.cifar10_train \
+    --module-name models.cifar10_train_s03 \
     --staging-bucket ${BUCKET_NAME} \
     --job-dir ${BUCKET_NAME}/${JOB_NAME} \
     --runtime-version 1.2 \
@@ -30,7 +30,7 @@ gcloud ml-engine jobs submit training ${JOB_NAME} \
     --depth 20 \
     --full 512 \
     --numChannels 128 \
-    --sparsity 0.9 \
+    --sparsity 0.3 \
     --number_of_b 512 \
     --convSize 3 \
     --momentum 0.9 \
