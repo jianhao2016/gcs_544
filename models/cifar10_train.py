@@ -336,7 +336,7 @@ test_batch_images, test_batch_labels = my_input_fn(filename = path2testData,
 # construct the graph
 images = tf.placeholder(tf.float32, shape = [None, _image_height, _image_width, _channels])
 labels = tf.placeholder(tf.float32, shape = [None])
-one_hot_labels = tf.one_hot(tf.cast(labels, tf.int43), depth = opt.nClass)
+one_hot_labels = tf.one_hot(tf.cast(labels, tf.int32), depth = opt.nClass)
 
 # the left two parameters are rate and training flag(pass into the LBC module)
 learning_rate = tf.placeholder(tf.float32, shape = [])
