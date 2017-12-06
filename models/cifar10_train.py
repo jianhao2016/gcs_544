@@ -369,9 +369,7 @@ def my_input_fn(filename, is_training, batch_size, nEpoch = 1):
 
 
 print('depth of resnet = {}'.format(opt.depth))
-print('nClass = {}, kSize = {}, numChannels = {}, FC_units = {}, data_format ={}, number_of_b = {}, sparsity = {}, shared_weights = {}'.format(opt.nClass, 
-            opt.convSize, opt.numChannels, opt.full, opt.data_format, opt.number_of_b,
-            opt.sparsity, opt.shared_weights)
+print('nClass = {}, kSize = {}, numChannels = {}, FC_units = {}, data_format ={}, number_of_b = {}, sparsity = {}, shared_weights = {}'.format(opt.nClass, opt.convSize, opt.numChannels, opt.full, opt.data_format, opt.number_of_b, opt.sparsity, opt.shared_weights))
 # network = resnet_LBC.cifar10_resnet_vanilla_generator(depth = opt.depth,
 #         nClass = opt.nClass, kSize = opt.convSize, numChannels = opt.numChannels,
 #         units_in_FC = opt.full, data_format = opt.data_format,
@@ -388,7 +386,7 @@ network = cifar10_resnet_LBC_generator(depth = opt.depth,
 
 
 # my_input_fn will return a pair of tensor, (images, labels), so no need for placeholder.
-print('batch_size = {}, nEpoch = {}'.format(opt.batch_size, opt.nEpochs)
+print('batch_size = {}, nEpoch = {}'.format(opt.batch_size, opt.nEpochs))
 train_batch_images, train_batch_labels = my_input_fn(filename = path2TrainData, 
         is_training = True, batch_size = opt.batch_size, nEpoch = opt.nEpochs)
 # train_one_hot_labels = tf.one_hot(tf.cast(train_batch_labels, tf.int32), depth = opt.nClass)
