@@ -21,11 +21,11 @@ gcloud ml-engine jobs submit training ${JOB_NAME} \
     -- \
     --train_data_dir ${BUCKET_NAME}/data/cifar10_train.tfrecords \
     --test_data_dir ${BUCKET_NAME}/data/cifar10_test.tfrecords \
-    --summaries_dir ${BUCKET_NAME}/results/summaries/ \
-    --model_dir ${BUCKET_NAME}/results/saved_models/ \
-    --nEpochs 250 \
+    --summaries_dir ${BUCKET_NAME}/results/summaries_${JOB_NAME}/ \
+    --model_dir ${BUCKET_NAME}/results/saved_models_${JOB_NAME}/ \
+    --nEpochs 100 \
     --batch_size 128 \
-    --LR 1e-4 \
+    --LR 1e-1 \
     --weightDecay 1e-4 \
     --depth 20 \
     --full 512 \
