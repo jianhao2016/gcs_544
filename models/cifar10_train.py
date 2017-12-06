@@ -15,33 +15,46 @@ from __future__ import print_function
 
 import sys
 import os
-
-class TEMP_opt:
-    def __init__(self):
-        self.nClass = 10
-        self.stride = 1
-        self.sparsity = 0.9
-        self.nInputPlane = 3
-        self.numChannels = 128 # number of intermediate layers between blocks, i.e. nChIn
-        self.number_of_b = 512 # number of binary filters in LBC, i.e. nChTmp
-        self.full = 512 # number of hidden units in FC
-        self.convSize = 3 # LB convolutional filter size
-        self.depth = 20 # number of blocks
-        self.weightDecay = 1e-4
-        self.LR = 1e-4 #initial learning rate
-        self.nEpochs = 250 # number of total epochs to run
-        # self.epochNumber = 1 # manual epoch number
-        self.batch_size = 128
-        self.data_format = 'channels_last'
-        self.shared_weights = False
-
-
+import base64
+import argparse
 import numpy as np
 import tensorflow as tf
+
+
+# class TEMP_opt:
+#     def __init__(self):
+#         self.nClass = 10
+#         self.stride = 1
+#         self.sparsity = 0.9
+#         self.nInputPlane = 3
+#         # self.numChannels = 128 # number of intermediate layers between blocks, i.e. nChIn
+#         # self.number_of_b = 512 # number of binary filters in LBC, i.e. nChTmp
+#         # self.full = 512 # number of hidden units in FC
+#         self.numChannels = 1 # number of intermediate layers between blocks, i.e. nChIn
+#         self.number_of_b = 9 # number of binary filters in LBC, i.e. nChTmp
+#         self.full = 20 # number of hidden units in FC
+#         self.convSize = 3 # LB convolutional filter size
+#         self.depth = 20 # number of blocks
+#         self.weightDecay = 1e-4
+#         self.LR = 1e-4 #initial learning rate
+#         self.nEpochs = 3 # number of total epochs to run
+#         # self.epochNumber = 1 # manual epoch number
+#         self.batch_size = 128
+#         self.data_format = 'channels_last'
+#         self.shared_weights = False
+
+
 # these two params are use in batch norm
 _BATCH_NORM_DECAY = 0.997
 _BATCH_NORM_EPSILON = 1e-5
 
+def str2bool(v):
+    if v.lower() in ('yes', 'true', '1', 'y', 't'):
+        return True
+    elif v.lower() in ('no', 'false', '0', 'n', 'f'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected')
 
 def batch_norm_relu(inputs, is_training, data_format):
   """Performs a batch normalization followed by a ReLU."""
@@ -195,10 +208,7 @@ def cifar10_resnet_LBC_generator(depth, nClass, kSize, numChannels,
 
     return model
 
-
-import base64
-import argparse
-
+# --- argument parser ----
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--train_data_dir', type = str, default = '../data/cifar10_train.tfrecords',
@@ -207,28 +217,79 @@ parser.add_argument('--train_data_dir', type = str, default = '../data/cifar10_t
 parser.add_argument('--test_data_dir', type = str, default = '../data/cifar10_test.tfrecords',
                     help='The directory to the stored cifar10 test data in tfrecords form.')
                     
-parser.add_argument('--depth', type = int, default = 15,
-                    help='The depth of resnet')
+parser.add_argument('--summaries_dir', type = str, default = '../results/summaries/',
+                    help='The directory to write summaries')
 
-FLAGS, unparsed = parser.parse_known_args()
+parser.add_argument('--model_dir', type = str, default = '../results/trained_models/',
+                    help='The directory to write summaries')
 
-opt = TEMP_opt()
-opt.depth = FLAGS.depth
+parser.add_argument('--nEpochs', type=int, default=1,
+                    help='# of total epochs to run')
 
-path2TrainData = FLAGS.train_data_dir
-path2testData = FLAGS.test_data_dir
+parser.add_argument('--batch_size', type=int, default=128,
+                    help='mini-batch size (1 = pure stochastic)')
+
+# optimization option
+parser.add_argument('--LR', type=float, default=1e-4,
+                    help='initial learning rate')
+
+parser.add_argument('--weightDecay', type=float, default=1e-4, 
+                    help='weight decay')
+
+# model option
+parser.add_argument('--nClass', type=int, default=10,
+                    help='number of classes in the output layer')
+
+parser.add_argument('--depth', type=int, default=1,
+                    help='ResNet depth: 18 | 34 | 50 | 101 | ...number')
+
+parser.add_argument('--shared_weights', type=str2bool,
+                    default=False, help='share weight or Not')
+
+parser.add_argument('--stride', type=int, default=1,
+                    help='Striding for Convolution, equivalent to pooling')
+
+parser.add_argument('--sparsity', type=float, default=0.9,
+                    help='Percentage of sparsity in pre-defined LB filters')
+
+parser.add_argument('--nInputPlane', type=int, default=3,
+                    help='number of input channels')
+
+parser.add_argument('--numChannels', type=int, default=3,
+                    help='number of intermediate channels')
+
+parser.add_argument('--full', type=int, default=20,
+                    help='number of hidden units in FC')
+
+parser.add_argument('--number_of_b', type=int, default=10,
+                    help='number of fixed binary weights')
+
+parser.add_argument('--convSize', type=int, default=3,
+                    help='LB convolutional filter size')
+
+parser.add_argument('--data_format', type=str, default='channels_last', 
+                    help='either channels_last or channels_first')
+
+parser.add_argument('--momentum', type=float, default=0.9,
+                    help='momentum in optimizer')
+
+opt, unparsed = parser.parse_known_args()
+
+path2TrainData = opt.train_data_dir
+path2testData = opt.test_data_dir
 
 
 _image_width = 32
 _image_height = 32
-_channels = 3
+_channels = opt.nInputPlane
 _train_dataset_size = 50000
 _test_dataset_size = 10000
-_WEIGHT_DECAY = 2e-4
-_momentum = 0.9
+# _WEIGHT_DECAY = 2e-4
+_WEIGHT_DECAY = opt.weightDecay
+_momentum = opt.momentum
 
-_BATCH_NORM_DECAY = 0.997
-_BATCH_NORM_EPSILON = 1e-5
+# _BATCH_NORM_DECAY = 0.997
+# _BATCH_NORM_EPSILON = 1e-5
 
 # google cloud can't use unpickle directly. 
 # instead, let's use tfrecords!
@@ -340,24 +401,34 @@ one_hot_labels = tf.one_hot(tf.cast(labels, tf.int32), depth = opt.nClass)
 
 # the left two parameters are rate and training flag(pass into the LBC module)
 learning_rate = tf.placeholder(tf.float32, shape = [])
-training_rate = 0.1
+training_rate = opt.LR
 is_training = tf.placeholder(tf.bool, shape = [], name = 'training_flag')
 # we can probably add drop-out rate here. As a placeholder.
 # # ----- why not just gen the data while training and feed them?
 
 logits = network(inputs = images, is_training = is_training)
 cross_entropy = tf.losses.softmax_cross_entropy(one_hot_labels, logits)
+summray_train_xentropy = tf.summary.scalar('cross_entropy', cross_entropy)
+
 loss = cross_entropy + _WEIGHT_DECAY * tf.add_n(
         [tf.nn.l2_loss(v) for v in tf.trainable_variables()])
+summary_train_loss = tf.summary.scalar('loss', loss)
 
 optimizer = tf.train.MomentumOptimizer(learning_rate = learning_rate, momentum = _momentum)
 
 update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 with tf.control_dependencies(update_ops):
-    train_op = optimizer.minimize(train_loss)
+    train_op = optimizer.minimize(loss)
 
 correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(one_hot_labels, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+summary_train_acc = tf.summary.scalar('accuracy', accuracy)
+
+# --- the code below is to help test accuracy --- 
+test_accuracy_summary = tf.placeholder(dtype = tf.float32, shape = [])
+summary_test_acc = tf.summary.scalar('test_accuracy', test_accuracy_summary)
+test_loss_summary = tf.placeholder(dtype = tf.float32, shape = [])
+summary_test_loss = tf.summary.scalar('test_loss', test_loss_summary)
 
 # # ---------------
 # # compute the output of a graph and see the loss/accuracy in the TRAINING NET!
@@ -391,6 +462,13 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 with tf.Session() as sess:
     init = tf.global_variables_initializer()
     sess.run(init)
+    saver = tf.train.Saver()
+    merged_train = tf.summary.merge(
+            inputs = [summary_train_loss, summray_train_xentropy, summary_train_acc])
+    merged_test = tf.summary.merge(
+            inputs = [summary_test_loss, summary_test_acc])
+    train_writer = tf.summary.FileWriter(opt.summaries_dir + 'train', sess.graph)
+    test_writer = tf.summary.FileWriter(opt.summaries_dir + 'test')
     total_step = opt.nEpochs * _train_dataset_size // opt.batch_size
     for epoch in range(opt.nEpochs):
         # Now that we use the my_input_fn function. no need to sample
@@ -411,8 +489,12 @@ with tf.Session() as sess:
                          learning_rate : training_rate,
                          is_training : True}
             # sess.run(train_op, feed_dict = feed_dict_1)
-            _, train_loss_w_bn, train_xentro_w_bn, train_acc_w_bn = sess.run(
-                    [train_op, loss, cross_entropy, accuracy], feed_dict = feed_dict_1)
+            _, train_loss_w_bn, train_xentro_w_bn, train_acc_w_bn, summary = sess.run(
+                    [train_op, loss, cross_entropy, accuracy, merged_train], feed_dict = feed_dict_1)
+            train_writer.add_summary(summary, step)
+            if step%5000 == 0:
+                path = opt.model_dir + repr(step) + '.ckpt'
+                saver.save(sess, path)
             # feed_dict_2 = {images : images_batch,
             #              labels : labels_batch,
             #              learning_rate : training_rate,
@@ -447,8 +529,10 @@ with tf.Session() as sess:
             #              is_training: False}
             eval_images, eval_labels = sess.run([test_batch_images, test_batch_labels])
             test_dict = {images : eval_images,
-                         labels : eval_labels}
-            test_batch_loss, test_batch_acc = sess.run([loss, accuracy], feed_dict = test_dict)
+                         labels : eval_labels,
+                         is_training: False}
+            test_batch_loss, test_batch_acc = sess.run(
+                    [loss, accuracy], feed_dict = test_dict)
             # test_batch_loss, test_batch_acc, test_batch_xentropy = sess.run(
             #         [test_loss, test_accuracy, test_cross_entropy],
             #         feed_dict = {is_training : False})
@@ -456,6 +540,14 @@ with tf.Session() as sess:
             eval_acc += test_batch_acc
         eval_loss = eval_loss/(_test_dataset_size//opt.batch_size)
         eval_acc = eval_acc/(_test_dataset_size//opt.batch_size)
+
+        test_summary_dict = {test_loss_summary: eval_loss,
+                             test_accuracy_summary: eval_acc}
+        summary = sess.run(merged_test, feed_dict = test_summary_dict)
+        # _, _, summary = sess.run([test_loss_summary, test_accuracy_summary, merged_test],
+        #         feed_dict = test_summary_dict)
+        test_writer.add_summary(summary, global_step = epoch)
+        
         print('>'*20)
         print(' | epoch# {} | evaluation loss = {} | accuracy = {} |'.format(
             epoch, eval_loss, eval_acc))
