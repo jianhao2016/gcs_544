@@ -28,6 +28,7 @@ gcloud ml-engine jobs submit training ${JOB_NAME} \
     --LR 1e-4 \
     --weightDecay 1e-4 \
     --depth 20 \
+    --full 512 \
     --numChannels 128 \
     --sparsity 0.9 \
     --number_of_b 512 \
