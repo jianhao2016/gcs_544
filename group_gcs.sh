@@ -35,3 +35,4 @@ gcloud ml-engine jobs submit training ${JOB_NAME} \
     --convSize 3 \
     --momentum 0.9 \
     --shared_weights False \
+    --block_fn vanilla \

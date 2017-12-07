@@ -21,29 +21,6 @@ import numpy as np
 import tensorflow as tf
 
 
-# class TEMP_opt:
-#     def __init__(self):
-#         self.nClass = 10
-#         self.stride = 1
-#         self.sparsity = 0.9
-#         self.nInputPlane = 3
-#         # self.numChannels = 128 # number of intermediate layers between blocks, i.e. nChIn
-#         # self.number_of_b = 512 # number of binary filters in LBC, i.e. nChTmp
-#         # self.full = 512 # number of hidden units in FC
-#         self.numChannels = 1 # number of intermediate layers between blocks, i.e. nChIn
-#         self.number_of_b = 9 # number of binary filters in LBC, i.e. nChTmp
-#         self.full = 20 # number of hidden units in FC
-#         self.convSize = 3 # LB convolutional filter size
-#         self.depth = 20 # number of blocks
-#         self.weightDecay = 1e-4
-#         self.LR = 1e-4 #initial learning rate
-#         self.nEpochs = 3 # number of total epochs to run
-#         # self.epochNumber = 1 # manual epoch number
-#         self.batch_size = 128
-#         self.data_format = 'channels_last'
-#         self.shared_weights = False
-
-
 # these two params are use in batch norm
 _BATCH_NORM_DECAY = 0.997
 _BATCH_NORM_EPSILON = 1e-5
@@ -60,6 +37,7 @@ def batch_norm_relu(inputs, is_training, data_format):
   """Performs a batch normalization followed by a ReLU."""
   # We set fused=True for a significant performance boost. See
   # https://www.tensorflow.org/performance/performance_guide#common_fused_ops
+
   # # another error cause by r1.2. Unfortunately.
   # inputs = tf.layers.batch_normalization(
   #     inputs=inputs, axis=1 if data_format == 'channels_first' else 3,
@@ -148,7 +126,45 @@ def basic_block_LBC(inputs, nChIn, nChTmp, kSize, is_training, data_format,
         output = shortcut + inputs
     return output
 
-def cifar10_resnet_LBC_generator(depth, nClass, kSize, numChannels, 
+def basic_block_vanilla(inputs, nChIn, nChTmp, kSize, is_training, data_format,
+        sparsity, shared_weights, block_name):
+    """
+    basic resnet block, with LBC module replacement.
+    nChIn : number of input channels to the block. Notice that the in/out of a
+            block has the same 'depth'/number of channels
+    nChTmp: number of binary filters used in the block. Cancel out by the
+            second conv in block.
+    kSize:  filter size in RBC.
+    is_training: a boolean, tell if training
+    data_format: 'channels_first' or 'channels_last'
+    sparsity/shared_weights: params used in RBC.
+    block_name: string. name of block.
+    """
+    with tf.name_scope(block_name):
+        shortcut = inputs
+        with tf.name_scope('batch_normalization'):
+            inputs = batch_norm_relu(inputs, is_training, data_format)
+        with tf.name_scope('vanilla_conv2d'):
+            inputs = tf.layers.conv2d(inputs, filters = nChTmp, kernel_size = kSize,
+                    strides = (1, 1), padding = 'SAME', data_format = data_format,
+                    use_bias = False)
+            # inputs = random_binary_convlution(inputs, nChIn = nChIn, nChOut = nChTmp,
+            #         kW = kSize, kH = kSize, dW = 1, dH = 1, padding = 'SAME',
+            #         data_format = data_format, sparsity = sparsity,
+            #         shared_weights = shared_weights)
+
+        inputs = tf.nn.relu(inputs)
+        with tf.name_scope('1x1_conv'):
+            # the second conv doesn't need any padding, since it's 1x1.
+            inputs = tf.layers.conv2d(inputs = inputs, filters = nChIn,
+                                    kernel_size = [1, 1],
+                                    padding = 'valid',
+                                    data_format = data_format,
+                                    use_bias = False)
+        output = shortcut + inputs
+    return output
+
+def cifar10_resnet_generator(block_fn, depth, nClass, kSize, numChannels, 
         units_in_FC, data_format, number_of_b, sparsity, shared_weights):
     """
     depth: how many blocks to use in resnet.
@@ -186,9 +202,16 @@ def cifar10_resnet_LBC_generator(depth, nClass, kSize, numChannels,
         # not necessary to add batch normalization, since each basic block hase bn
         # inputs = batch_norm_relu(inputs, is_training, data_format)
         
+        if block_fn == basic_block_LBC:
+            block_prefix = 'LBC_residual_block_'
+        elif block_fn == basic_block_vanilla:
+            block_prefix = 'vanilla_residual_block_'
+        else:
+            sys.exit('block_fn must be either LBC or vanilla')
+        
         for i in range(depth):
-            block_name = 'LBC_residual_block_' + str(i)
-            inputs = basic_block_LBC(inputs, nChIn, nChTmp, kSize, is_training,
+            block_name = block_prefix + str(i)
+            inputs = block_fn(inputs, nChIn, nChTmp, kSize, is_training,
                     data_format = data_format, sparsity = sparsity,
                     shared_weights = shared_weights, block_name = block_name)
 
@@ -223,12 +246,6 @@ parser.add_argument('--summaries_dir', type = str, default = '../results/summari
 parser.add_argument('--model_dir', type = str, default = '../results/trained_models/',
                     help='The directory to write summaries')
 
-parser.add_argument('--nEpochs', type=int, default=1,
-                    help='# of total epochs to run')
-
-parser.add_argument('--batch_size', type=int, default=128,
-                    help='mini-batch size (1 = pure stochastic)')
-
 # optimization option
 parser.add_argument('--LR', type=float, default=1e-4,
                     help='initial learning rate')
@@ -237,6 +254,16 @@ parser.add_argument('--weightDecay', type=float, default=1e-4,
                     help='weight decay')
 
 # model option
+parser.add_argument('--block_fn', type=str, default = 'LBC',
+                    choices=['LBC', 'vanilla'],
+                    help='which model to use in resnet')
+
+parser.add_argument('--nEpochs', type=int, default=1,
+                    help='# of total epochs to run')
+
+parser.add_argument('--batch_size', type=int, default=128,
+                    help='mini-batch size (1 = pure stochastic)')
+
 parser.add_argument('--nClass', type=int, default=10,
                     help='number of classes in the output layer')
 
@@ -288,55 +315,6 @@ _test_dataset_size = 10000
 _WEIGHT_DECAY = opt.weightDecay
 _momentum = opt.momentum
 
-# _BATCH_NORM_DECAY = 0.997
-# _BATCH_NORM_EPSILON = 1e-5
-
-# google cloud can't use unpickle directly. 
-# instead, let's use tfrecords!
-# def unpickle(file):
-#     import pickle
-#     with open(file, 'rb') as fo:
-#         dict = pickle.load(fo, encoding='bytes')
-#     return dict
-# 
-# def shuffleDataSet(images, labels):
-#     assert len(images) == len(labels)
-#     p = np.random.permutation(len(images))
-#     return images[p], labels[p]
-# 
-# print('extracting data from: {}cifar-10-batches-py/'.format(path2Data))
-# # unpacking training and test data
-# b1 = unpickle(path2Data + 'cifar-10-batches-py/data_batch_1')
-# b2 = unpickle(path2Data + 'cifar-10-batches-py/data_batch_2')
-# b3 = unpickle(path2Data + 'cifar-10-batches-py/data_batch_3')
-# b4 = unpickle(path2Data + 'cifar-10-batches-py/data_batch_4')
-# b5 = unpickle(path2Data + 'cifar-10-batches-py/data_batch_5')
-# 
-# test = unpickle(path2Data + 'cifar-10-batches-py/test_batch')
-# for key, _ in test.items():
-#     print(repr(key), type(key))
-# for key, _ in b1.items():
-#     print(repr(key), type(key))
-# 
-# # preparing test data
-# test_data = test[b'data']
-# test_label = test[b'labels']
-# 
-# # preparing training data
-# train_data = np.concatenate([b1[b'data'],b2[b'data'],b3[b'data'],b4[b'data'],b5[b'data']],axis=0)
-# train_label = np.concatenate([b1[b'labels'],b2[b'labels'],b3[b'labels'],b4[b'labels'],b5[b'labels']],axis=0)
-# 
-# #Reshaping data
-# train_data = np.reshape(train_data, newshape = 
-#     [-1, _channels, _image_height, _image_width])
-# test_data = np.reshape(test_data, newshape = 
-#     [-1, _channels, _image_height, _image_width])
-# train_data = np.array(train_data, dtype=float) / 255.0
-# test_data = np.array(test_data, dtype=float) /255.0
-# # reshape the data format to NHWC. channel_last!!!.
-# train_data = train_data.transpose([0, 2, 3, 1])
-# test_data = test_data.transpose([0, 2, 3, 1])
-# =========== end of data generating ===========
 
 # fname = path2Data
 def _parse_function(serialized_example):
@@ -375,8 +353,14 @@ print('nClass = {}, kSize = {}, numChannels = {}, FC_units = {}, data_format ={}
 #         units_in_FC = opt.full, data_format = opt.data_format,
 #         number_of_b = opt.number_of_b, sparsity = opt.sparsity,
 #         shared_weights = opt.shared_weights)
+if opt.block_fn == 'LBC':
+    b_fn = basic_block_LBC
+elif opt.block_fn == 'vanilla':
+    b_fn = basic_block_vanilla
+else:
+    sys.exit('error in argument block_fn')
 
-network = cifar10_resnet_LBC_generator(depth = opt.depth,
+network = cifar10_resnet_generator(block_fn = b_fn, depth = opt.depth,
         nClass = opt.nClass, kSize = opt.convSize, numChannels = opt.numChannels,
         units_in_FC = opt.full, data_format = opt.data_format,
         number_of_b = opt.number_of_b, sparsity = opt.sparsity,
