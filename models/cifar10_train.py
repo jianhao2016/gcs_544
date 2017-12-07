@@ -247,7 +247,7 @@ parser.add_argument('--model_dir', type = str, default = '../results/trained_mod
                     help='The directory to write summaries')
 
 # optimization option
-parser.add_argument('--LR', type=float, default=1e-4,
+parser.add_argument('--LR', type=float, default=1e-1,
                     help='initial learning rate')
 
 parser.add_argument('--weightDecay', type=float, default=1e-4, 
